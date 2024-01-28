@@ -3,4 +3,4 @@ main.ts
 helpers.ts
 farming_wallets_sui.json
 utils.ts
-./node_modules/
+node_modules
