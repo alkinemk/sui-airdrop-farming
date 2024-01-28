@@ -8,8 +8,6 @@
 
 ## macos
 
-## windows
-
 1. Installer node avec les options par défaut https://nodejs.org/en/download/current
 2. Lancer une fenêtre de terminal
 
