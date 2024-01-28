@@ -3,7 +3,6 @@ import { SUI_CLOCK_OBJECT_ID } from "@mysten/sui.js/utils";
 import * as fs from "fs";
 
 import { input } from "@inquirer/prompts";
-import confirm from "@inquirer/confirm";
 
 import { Ed25519Keypair } from "@mysten/sui.js/keypairs/ed25519";
 import { getFullnodeUrl, SuiClient } from "@mysten/sui.js/client";
@@ -243,11 +242,6 @@ const depositInNavi = async (suiKeypair: Ed25519Keypair, client: SuiClient) => {
 };
 
 async function main() {
-  // use getFullnodeUrl to define Devnet RPC location
-
-  console.log(
-    "PLEASE CREATE A NEW WALLET AND SEND YOUR DESIRED FARMING AMOUNT THERE 📍"
-  );
   const rpcUrl = getFullnodeUrl("mainnet");
   // create a client connected to devnet
   const client = new SuiClient({ url: rpcUrl });
