@@ -13,6 +13,8 @@ import select from "@inquirer/select";
 
 const MIST_PER_SUI = 1_000_000_000;
 
+let TOTAL_REQUESTS = 0;
+
 import { fromHEX, toHEX, fromB64 } from "@mysten/bcs";
 
 import { pool, config } from "./constants";
@@ -149,6 +151,7 @@ const sendCoin = async (
         showEffects: true,
       },
     });
+    TOTAL_REQUESTS += 1;
     saveArrayToFile("farming_wallets_sui.json", privateKeysTo);
   } catch (err) {
     console.log(err);
@@ -556,9 +559,18 @@ async function main() {
     const privateKey = toHEX(fromB64(keypairData.privateKey)).toString();
     console.log(`Current private key: ${privateKey} 🔑`);
     if (choice === "0x2::sui::SUI") {
+      if (TOTAL_REQUESTS > 80) {
+        await new Promise((resolve) => setTimeout(resolve, 30000));
+        TOTAL_REQUESTS = 0;
+      }
       await naviSuiStrategy(value, client);
       await kaiSuiStrategy(value, client);
+      TOTAL_REQUESTS += 2;
     } else {
+      if (TOTAL_REQUESTS > 80) {
+        await new Promise((resolve) => setTimeout(resolve, 30000));
+        TOTAL_REQUESTS = 0;
+      }
       await naviSuiStrategy(value, client);
     }
   });
