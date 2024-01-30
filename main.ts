@@ -137,9 +137,9 @@ const sendCoin = async (
     });
     keypairsTo.forEach((value, _) => {
       console.log(
-        `Succesfully sent ${Math.floor(
+        `Succesfully sent ${
           (suiBalance - 0.2) / sybilAmount
-        )} SUI to ${value.toSuiAddress()}`
+        } SUI to ${value.toSuiAddress()}`
       );
     });
 
@@ -153,96 +153,22 @@ const sendCoin = async (
   } catch (err) {
     console.log(err);
   }
-  // } else {
-  //   const { totalBalance, coinObjectCount } = await client.getBalance({
-  //     owner: publicKey,
-  //     coinType: coin,
-  //   });
-
-  //   if (coinObjectCount === 0) {
-  //     return;
-  //   }
-
-  //   const { data } = await client.getCoins({
-  //     owner: publicKey,
-  //     coinType: coin,
-  //   });
-
-  //   const total_wallets_to = keypairsTo.length;
-  //   const amount_per_wallet =
-  //     Math.floor(parseInt(totalBalance)) / total_wallets_to;
-
-  //   const gasAmounts = Array(total_wallets_to).fill(0.2 * MIST_PER_SUI);
-  //   const coinAmounts = Array(total_wallets_to).fill(amount_per_wallet);
-
-  //   // first, split gasCoins
-  //   const gasCoins = txb.splitCoins(txb.gas, gasAmounts);
-
-  //   keypairsTo.forEach((keypair, index) => {
-  //     txb.transferObjects([gasCoins[index]], keypair?.toSuiAddress());
-  //   });
-
-  //   // first, merge coins
-  //   txb.mergeCoins(
-  //     txb.object(data[0].coinObjectId),
-  //     data.map((coin) => coin.coinObjectId).slice(1)
-  //   );
-
-  //   // then, split the coin into multiple coins
-  //   const coins = txb.splitCoins(data[0].coinObjectId, coinAmounts);
-
-  //   // next, create a transfer transaction for each coin
-  //   keypairsTo.forEach((keypair, index) => {
-  //     txb.transferObjects([coins[index]], keypair?.toSuiAddress());
-  //   });
-
-  //   // transfer the split coin to a specific address
-  //   try {
-  //     const result = await client.signAndExecuteTransactionBlock({
-  //       transactionBlock: txb,
-  //       signer: keypairFrom,
-  //       requestType: "WaitForLocalExecution",
-  //       options: {
-  //         showEffects: true,
-  //       },
-  //     });
-  //     keypairsTo.forEach((value, _) => {
-  //       console.log(
-  //         `Succesfully sent ${
-  //           amount_per_wallet / pool.usdc.decimals
-  //         } USDC to ${value.toSuiAddress()}`
-  //       );
-  //     });
-
-  //     await client.waitForTransactionBlock({
-  //       digest: result.digest,
-  //       options: {
-  //         showEffects: true,
-  //       },
-  //     });
-  //     saveArrayToFile("farming_wallets_sui.json", privateKeysTo);
-  //   } catch (err) {
-  //     console.log(err);
-  //   }
 };
 
-const suiStrategy = async (suiKeypair: Ed25519Keypair, client: SuiClient) => {
+const naviSuiStrategy = async (
+  suiKeypair: Ed25519Keypair,
+  client: SuiClient
+) => {
   const txb = new TransactionBlock();
 
   const publicKey = suiKeypair.toSuiAddress();
 
-  let { data } = await client.getCoins({
+  let { totalBalance } = await client.getBalance({
     owner: publicKey,
     coinType: "0x2::sui::SUI",
   });
 
-  const balance = data
-    .map(({ balance }) => parseInt(balance))
-    .reduce((acc, currValue) => {
-      return acc + currValue;
-    }, 0);
-
-  const suiToBeUsed = balance - 0.2 * MIST_PER_SUI;
+  const suiToBeUsed = Math.floor(parseInt(totalBalance) - 0.2 * MIST_PER_SUI);
 
   const [coin] = txb.splitCoins(txb.gas, [suiToBeUsed]);
 
@@ -334,7 +260,7 @@ const suiStrategy = async (suiKeypair: Ed25519Keypair, client: SuiClient) => {
   }
 };
 
-const stableStrategy = async (
+const naviStableStrategy = async (
   suiKeypair: Ed25519Keypair,
   client: SuiClient
 ) => {
@@ -416,141 +342,83 @@ const stableStrategy = async (
   }
 };
 
-const depositInNavi = async (
+const kaiSuiStrategy = async (
   suiKeypair: Ed25519Keypair,
-  client: SuiClient,
-  coinType: string
+  client: SuiClient
 ) => {
   const txb = new TransactionBlock();
+
   const publicKey = suiKeypair.toSuiAddress();
 
-  if (coinType === "SUI") {
-    const { totalBalance } = await client.getBalance({
-      owner: publicKey,
-      coinType: coinType,
+  let { totalBalance } = await client.getBalance({
+    owner: publicKey,
+    coinType: "0x2::sui::SUI",
+  });
+
+  const suiToBeUsed = Math.floor(parseInt(totalBalance) - 0.2 * MIST_PER_SUI);
+
+  const [suiCoin] = txb.splitCoins(txb.gas, [suiToBeUsed]);
+
+  let [intoBalance] = txb.moveCall({
+    target: `0x0000000000000000000000000000000000000000000000000000000000000002::coin::into_balance`,
+    arguments: [suiCoin],
+    typeArguments: ["0x2::sui::SUI"],
+  });
+
+  let [ysuiCoin] = txb.moveCall({
+    target: `0x01c389a85310b47e7630a9361d4e71025bc35e4999d3a645949b1b68b26f2273::vault::deposit`,
+    arguments: [
+      txb.object(
+        "0x16272b75d880ab944c308d47e91d46b2027f55136ee61b3db99098a926b3973c"
+      ),
+      intoBalance,
+      txb.object(
+        "0x0000000000000000000000000000000000000000000000000000000000000006"
+      ),
+    ],
+    typeArguments: [
+      "0x2::sui::SUI",
+      "0xb8dc843a816b51992ee10d2ddc6d28aab4f0a1d651cd7289a7897902eb631613::ysui::YSUI",
+    ],
+  });
+
+  let fromBalance = txb.moveCall({
+    target: `0x0000000000000000000000000000000000000000000000000000000000000002::coin::from_balance`,
+    arguments: [ysuiCoin],
+    typeArguments: [
+      "0xb8dc843a816b51992ee10d2ddc6d28aab4f0a1d651cd7289a7897902eb631613::ysui::YSUI",
+    ],
+  });
+
+  txb.transferObjects([fromBalance], suiKeypair.toSuiAddress());
+
+  try {
+    const result = await client.signAndExecuteTransactionBlock({
+      signer: suiKeypair,
+      transactionBlock: txb,
+      requestType: "WaitForLocalExecution",
+      options: {
+        showEffects: true,
+      },
     });
-
-    let { data } = await client.getCoins({
-      owner: publicKey,
-      coinType: coinType,
+    await client.waitForTransactionBlock({
+      digest: result.digest,
+      options: {
+        showEffects: true,
+      },
     });
-
-    if (data.length > 1) {
-      txb.mergeCoins(
-        txb.object(data[0].coinObjectId),
-        data.map((coin) => coin.coinObjectId).slice(1)
-      );
-    }
-
-    const parsedBalance = parseInt(totalBalance);
-    const [coin] = txb.splitCoins(txb.object(data[0].coinObjectId), [
-      parsedBalance,
-    ]);
-    txb.moveCall({
-      target: `${config.ProtocolPackage}::incentive_v2::entry_deposit`,
-      arguments: [
-        txb.object(SUI_CLOCK_OBJECT_ID), // clock object id,
-        txb.object(config.StorageId), // object id of storage
-        txb.object(pool.vsui.poolId), // pool id of the asset
-        txb.pure.u8(pool.vsui.assetId), // the id of the asset in the protocol
-        coin, // the object id of the token you own.
-        txb.pure.u64(parsedBalance), // The amount you want to deposit, decimals must be carried, like 1 sui => 1000000000
-        txb.object(config.Incentive),
-        txb.object(config.IncentiveV2), // The incentive object v2
-      ],
-      typeArguments: [pool.vsui.type],
-    });
-
-    try {
-      const result = await client.signAndExecuteTransactionBlock({
-        signer: suiKeypair,
-        transactionBlock: txb,
-        requestType: "WaitForLocalExecution",
-        options: {
-          showEffects: true,
-        },
-      });
-      await client.waitForTransactionBlock({
-        digest: result.digest,
-        options: {
-          showEffects: true,
-        },
-      });
-      console.log(
-        `Succesfully deposited ${
-          parsedBalance / pool.vsui.decimals
-        } vSUI in Navi with wallet ${publicKey}`
-      );
-    } catch (err) {
-      console.log(err);
-    }
-  } else {
-    const { totalBalance } = await client.getBalance({
-      owner: publicKey,
-      coinType: coinType,
-    });
-
-    let { data } = await client.getCoins({
-      owner: publicKey,
-      coinType: coinType,
-    });
-
-    if (data.length > 1) {
-      txb.mergeCoins(
-        txb.object(data[0].coinObjectId),
-        data.map((coin) => coin.coinObjectId).slice(1)
-      );
-    }
-
-    const parsedBalance = parseInt(totalBalance);
-    const [coin] = txb.splitCoins(txb.object(data[0].coinObjectId), [
-      parsedBalance,
-    ]);
-
-    txb.moveCall({
-      target: `${config.ProtocolPackage}::incentive_v2::entry_deposit`,
-      arguments: [
-        txb.object(SUI_CLOCK_OBJECT_ID), // clock object id,
-        txb.object(config.StorageId), // object id of storage
-        txb.object(pool.usdc.poolId), // pool id of the asset
-        txb.pure.u8(pool.usdc.assetId), // the id of the asset in the protocol
-        coin, // the object id of the token you own.
-        txb.pure.u64(parsedBalance), // The amount you want to deposit, decimals must be carried, like 1 sui => 1000000000
-        txb.object(config.Incentive),
-        txb.object(config.IncentiveV2), // The incentive object v2
-      ],
-      typeArguments: [pool.usdc.type],
-    });
-
-    try {
-      const result = await client.signAndExecuteTransactionBlock({
-        signer: suiKeypair,
-        transactionBlock: txb,
-        requestType: "WaitForLocalExecution",
-        options: {
-          showEffects: true,
-        },
-      });
-      await client.waitForTransactionBlock({
-        digest: result.digest,
-        options: {
-          showEffects: true,
-        },
-      });
-      console.log(
-        `Succesfully deposited ${
-          parsedBalance / pool.usdc.decimals
-        } USDC in Navi with wallet ${publicKey}`
-      );
-    } catch (err) {
-      console.log(err);
-    }
+    console.log(
+      `Succesfully deposited ${
+        suiToBeUsed / MIST_PER_SUI
+      } SUI in Kai with wallet ${publicKey}`
+    );
+  } catch (err) {
+    console.log(err);
   }
 };
 
 async function main() {
   // use getFullnodeUrl to define Devnet RPC location
-
   const rpcUrl = getFullnodeUrl("mainnet");
   // create a client connected to devnet
   const client = new SuiClient({ url: rpcUrl });
@@ -577,6 +445,10 @@ async function main() {
   const suiWallet = await input({
     message: "Private key",
   }).then((res) => {
+    if (res.startsWith("0x")) {
+      console.log("You provided a public key 😡");
+      return;
+    }
     try {
       const wallet = Ed25519Keypair.fromSecretKey(fromHEX(res));
       if (wallet) {
@@ -589,7 +461,6 @@ async function main() {
   });
 
   if (!suiWallet) {
-    console.log("Error: Main wallet keypair is undefined");
     return;
   }
 
@@ -685,11 +556,14 @@ async function main() {
     const privateKey = toHEX(fromB64(keypairData.privateKey)).toString();
     console.log(`Current private key: ${privateKey} 🔑`);
     if (choice === "0x2::sui::SUI") {
-      await suiStrategy(value, client);
+      await naviSuiStrategy(value, client);
+      await kaiSuiStrategy(value, client);
     } else {
-      await depositInNavi(value, client, usdtCoinType);
+      await naviSuiStrategy(value, client);
     }
   });
 }
 
 main();
+
+// 0x01c389a85310b47e7630a9361d4e71025bc35e4999d3a645949b1b68b26f2273::vault::Vault<0x2::sui::SUI, 0xb8dc843a816b51992ee10d2ddc6d28aab4f0a1d651cd7289a7897902eb631613::ysui::YSUI>
