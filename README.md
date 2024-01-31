@@ -19,7 +19,7 @@ npm i && npm i -g ts-node
 ```
 
 ```bash
-ts-node navi.ts
+ts-node main.ts
 ```
 
 ## macos
@@ -40,5 +40,5 @@ npm i && npm i -g ts-node
 ```
 
 ```bash
-ts-node navi.ts
+ts-node main.ts
 ```
