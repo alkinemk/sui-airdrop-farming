@@ -5,6 +5,7 @@
     "typescript": "^5.3.3"
   },
   "dependencies": {
+    "@commander-js/extra-typings": "^11.1.0",
     "@inquirer/prompts": "^3.3.0",
     "@mysten/sui.js": "^0.49.1",
     "@noble/ed25519": "^2.0.0",

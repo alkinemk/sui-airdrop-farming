@@ -3,7 +3,7 @@ import { Ed25519Keypair } from "@mysten/sui.js/dist/cjs/keypairs/ed25519";
 export interface Pool {
   sui: PoolConfig;
   usdc: PoolConfig;
-  // "usdt": PoolConfig;
+  usdt: PoolConfig;
   // "weth": PoolConfig;
   vsui: PoolConfig;
 }
@@ -13,10 +13,9 @@ export interface PoolConfig {
   assetId: number;
   poolId: string; // Type must be ${PriceOraclePackage}::pool::Pool<${CoinType}>
   type: string; // CoinType
-  decimals: number;
-  //reserveObjectId: string; // Get it from dynamic object, type must be ${ProtocolPackage}::storage::ReserveData
-  //borrowBalanceParentId: string; // Get it from dynamic object, type must be ${ProtocolPackage}::storage::TokenBalance
-  //supplyBalanceParentId: string; // Get it from dynamic object, type must be ${ProtocolPackage}::storage::TokenBalance
+  reserveObjectId: string; // Get it from dynamic object, type must be ${ProtocolPackage}::storage::ReserveData
+  borrowBalanceParentId: string; // Get it from dynamic object (reserve parent id), type must be u8 and value assetId
+  supplyBalanceParentId: string; // Get it from dynamic object, type must be ${ProtocolPackage}::storage::TokenBalance
 }
 
 export const config = {
@@ -42,7 +41,12 @@ export const pool: Pool = {
     poolId:
       "0x96df0fce3c471489f4debaaa762cf960b3d97820bd1f3f025ff8190730e958c5",
     type: "0x2::sui::SUI",
-    decimals: 1_000_000_000,
+    reserveObjectId:
+      "0xab644b5fd11aa11e930d1c7bc903ef609a9feaf9ffe1b23532ad8441854fbfaf",
+    borrowBalanceParentId:
+      "0xe7ff0daa9d090727210abe6a8b6c0c5cd483f3692a10610386e4dc9c57871ba7",
+    supplyBalanceParentId:
+      "0x589c83af4b035a3bc64c40d9011397b539b97ea47edf7be8f33d643606bf96f8",
   },
   usdc: {
     name: "USDC",
@@ -50,15 +54,27 @@ export const pool: Pool = {
     poolId:
       "0xa02a98f9c88db51c6f5efaaf2261c81f34dd56d86073387e0ef1805ca22e39c8",
     type: "0x5d4b302506645c37ff133b98c4b50a5ae14841659738d6d733d59d0d217a93bf::coin::COIN",
-    decimals: 1_000_000,
+
+    reserveObjectId:
+      "0xeb3903f7748ace73429bd52a70fff278aac1725d3b58afa781f25ce3450ac203",
+    borrowBalanceParentId:
+      "0x8a3aaa817a811131c624658f6e77cba04ab5829293d2c49c1a9cce8ac9c8dec4",
+    supplyBalanceParentId:
+      "0x8d0a4467806458052d577c8cd2be6031e972f2b8f5f77fce98aa12cd85330da9",
   },
-  // usdt: {
-  //   name: "USDT",
-  //   assetId: 2,
-  //   poolId:
-  //     "0x0e060c3b5b8de00fb50511b7a45188c8e34b6995c01f69d98ea5a466fe10d103",
-  //   type: "0xc060006111016b8a020ad5b33834984a437aaa7d3c74c18e09a95d48aceab08c::coin::COIN",
-  // },
+  usdt: {
+    name: "USDT",
+    assetId: 2,
+    poolId:
+      "0x0e060c3b5b8de00fb50511b7a45188c8e34b6995c01f69d98ea5a466fe10d103",
+    type: "0xc060006111016b8a020ad5b33834984a437aaa7d3c74c18e09a95d48aceab08c::coin::COIN",
+    reserveObjectId:
+      "0xb8c5eab02a0202f638958cc79a69a2d30055565caad1684b3c8bbca3bddcb322",
+    borrowBalanceParentId:
+      "0xc14d8292a7d69ae31164bafab7ca8a5bfda11f998540fe976a674ed0673e448f",
+    supplyBalanceParentId:
+      "0x7e2a49ff9d2edd875f82b76a9b21e2a5a098e7130abfd510a203b6ea08ab9257",
+  },
   // weth: {
   //   name: "WETH",
   //   assetId: 3,
@@ -72,6 +88,11 @@ export const pool: Pool = {
     poolId:
       "0x9790c2c272e15b6bf9b341eb531ef16bcc8ed2b20dfda25d060bf47f5dd88d01",
     type: "0x549e8b69270defbfafd4f94e17ec44cdbdd99820b33bda2278dea3b9a32d3f55::cert::CERT",
-    decimals: 1_000_000_000,
+    reserveObjectId:
+      "0xd4fd7e094af9819b06ea3136c13a6ae8da184016b78cf19773ac26d2095793e2",
+    borrowBalanceParentId:
+      "0x8fa5eccbca2c4ba9aae3b87fd44aa75aa5f5b41ea2d9be4d5321379384974984",
+    supplyBalanceParentId:
+      "0xe6457d247b6661b1cac123351998f88f3e724ff6e9ea542127b5dcb3176b3841",
   },
 };
