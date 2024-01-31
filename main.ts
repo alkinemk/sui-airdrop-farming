@@ -577,31 +577,18 @@ async function main() {
     return;
   }
   const publicKey = suiWallet.toSuiAddress();
-  // let { data } = await client.getAllCoins({
-  //   owner: publicKey,
-  // });
-  // let coins = data.filter(
-  //   (value) => value.coinType === suiCoinType || value.coinType === usdtCoinType
-  // );
+
   const sybilAmount = await input({
     message: "How many wallet(s)?",
   }).then((res) => parseInt(res));
-  // Filter SUI balance
-  // const suiCoin = coins.find((value) => value.coinType === suiCoinType);
-  // if (suiCoin) {
-  //   suiBalance = parseInt(suiCoin.balance) / MIST_PER_SUI;
-  // }
+
   const suiBalance = await client
     .getBalance({
       owner: publicKey,
       coinType: suiCoinType,
     })
     .then((res) => parseInt(res.totalBalance) / MIST_PER_SUI);
-  // Filter USDT balance
-  // const usdtCoin = coins.find((value) => value.coinType === usdtCoinType);
-  // if (usdtCoin) {
-  //   usdtBalance = parseInt(usdtCoin.balance) / 10 ** 6;
-  // }
+
   const usdtBalance = await client
     .getBalance({
       owner: publicKey,
