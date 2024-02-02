@@ -18,8 +18,16 @@ cd sui-airdrop-farming
 npm i && npm i -g ts-node
 ```
 
+Start farming
+
 ```bash
-ts-node main.ts
+ts-node main.ts farm
+```
+
+Check positions
+
+```bash
+ts-node main.ts check-positions
 ```
 
 ## macos
@@ -39,6 +47,14 @@ cd sui-airdrop-farming
 npm i && npm i -g ts-node
 ```
 
+Start farming
+
 ```bash
-ts-node main.ts
+ts-node main.ts farm
+```
+
+Check positions
+
+```bash
+ts-node main.ts check-positions
 ```
