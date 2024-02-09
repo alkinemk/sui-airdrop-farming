@@ -1265,7 +1265,7 @@ async function main() {
             name: "SUI strategy (HAEDAL)",
             value: "haSUI",
             description:
-              "Stake SUI for haSUI on Haedal. Deposit haSUI and borrow SUI on Scallop. Deposit SUI on Kai Finance",
+              "Stake SUI for haSUI on Haedal. Deposit haSUI and borrow SUI on Navi. Deposit SUI on Kai Finance",
           },
         ],
       });
