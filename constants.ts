@@ -4,8 +4,9 @@ export interface Pool {
   sui: PoolConfig;
   usdc: PoolConfig;
   usdt: PoolConfig;
-  // "weth": PoolConfig;
+  weth: PoolConfig;
   vsui: PoolConfig;
+  hasui: PoolConfig;
 }
 
 export interface PoolConfig {
@@ -13,9 +14,9 @@ export interface PoolConfig {
   assetId: number;
   poolId: string; // Type must be ${PriceOraclePackage}::pool::Pool<${CoinType}>
   type: string; // CoinType
-  reserveObjectId: string; // Get it from dynamic object, type must be ${ProtocolPackage}::storage::ReserveData
-  borrowBalanceParentId: string; // Get it from dynamic object (reserve parent id), type must be u8 and value assetId
-  supplyBalanceParentId: string; // Get it from dynamic object, type must be ${ProtocolPackage}::storage::TokenBalance
+  reserveObjectId: string; // Get it from dynamic object (reserve parent id), type must be u8 and value assetId
+  borrowBalanceParentId: string; // Get it from object fields (reserveObjectId)
+  supplyBalanceParentId: string; // Get it from object fields (reserveObjectId)
 }
 
 export const config = {
@@ -75,13 +76,19 @@ export const pool: Pool = {
     supplyBalanceParentId:
       "0x7e2a49ff9d2edd875f82b76a9b21e2a5a098e7130abfd510a203b6ea08ab9257",
   },
-  // weth: {
-  //   name: "WETH",
-  //   assetId: 3,
-  //   poolId:
-  //     "0x71b9f6e822c48ce827bceadce82201d6a7559f7b0350ed1daa1dc2ba3ac41b56",
-  //   type: "0xaf8cd5edc19c4512f4259f0bee101a40d41ebed738ade5874359610ef8eeced5::coin::COIN",
-  // },
+  weth: {
+    name: "WETH",
+    assetId: 3,
+    poolId:
+      "0x71b9f6e822c48ce827bceadce82201d6a7559f7b0350ed1daa1dc2ba3ac41b56",
+    type: "0xaf8cd5edc19c4512f4259f0bee101a40d41ebed738ade5874359610ef8eeced5::coin::COIN",
+    reserveObjectId:
+      "0xafecf4b57899d377cc8c9de75854c68925d9f512d0c47150ca52a0d3a442b735",
+    borrowBalanceParentId:
+      "0x7568d06a1b6ffc416a36c82791e3daf0e621cf19d4a2724fc6f74842661b6323",
+    supplyBalanceParentId:
+      "0xa668905b1ad445a3159b4d29b1181c4a62d864861b463dd9106cc0d97ffe8f7f",
+  },
   vsui: {
     name: "VSUI",
     assetId: 5,
@@ -95,4 +102,23 @@ export const pool: Pool = {
     supplyBalanceParentId:
       "0xe6457d247b6661b1cac123351998f88f3e724ff6e9ea542127b5dcb3176b3841",
   },
+  hasui: {
+    name: "HASUI",
+    assetId: 6,
+    poolId:
+      "0x6fd9cb6ebd76bc80340a9443d72ea0ae282ee20e2fd7544f6ffcd2c070d9557a",
+    type: "0xbde4ba4c2e274a60ce15c1cfff9e5c42e41654ac8b6d906a57efa4bd3c29f47d::hasui::HASUI",
+    reserveObjectId:
+      "0x0c9f7a6ca561dc566bd75744bcc71a6af1dc3caf7bd32c099cd640bb5f3bb0e3",
+    borrowBalanceParentId:
+      "0x01f36898e020be6c3423e5c95d9f348868813cd4d0be39b0c8df9d8de4722b00",
+    supplyBalanceParentId:
+      "0x278b8e3d09c3548c60c51ed2f8eed281876ea58c392f71b7ff650cc9286d095b",
+  },
 };
+
+export const sui_system_state =
+  "0x0000000000000000000000000000000000000000000000000000000000000005";
+
+export const staking =
+  "0x47b224762220393057ebf4f70501b6e657c3e56684737568439a04f80849b2ca";

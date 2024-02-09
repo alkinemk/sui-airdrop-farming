@@ -15,7 +15,9 @@ import select from "@inquirer/select";
 
 import { fromHEX, toHEX, fromB64 } from "@mysten/bcs";
 
-import { pool, config } from "./constants";
+import { pool, config, sui_system_state, staking } from "./constants";
+
+import { Aftermath } from "aftermath-ts-sdk";
 
 const program = new Command();
 const MIST_PER_SUI = 1_000_000_000;
@@ -239,7 +241,7 @@ const sendCoin = async (
       },
     });
     TOTAL_REQUESTS += 2;
-    saveArrayToFile("farming_wallets_sui.json", privateKeysTo);
+    saveArrayToFile("farming_wallets_sui_hasui.json", privateKeysTo);
   } catch (err) {
     console.log(err);
   }
@@ -249,139 +251,140 @@ const checkPositions = async () => {
   const rpcUrl = getFullnodeUrl("mainnet");
   // create a client connected to devnet
   const client = new SuiClient({ url: rpcUrl });
-  const suiKeypairs = readArrayFromFile("farming_wallets_sui.json");
 
-  if (!suiKeypairs) {
-    console.log("No keypairs found in the file!");
-    return;
-  }
+  // const suiKeypairs = readArrayFromFile("farming_wallets_sui.json");
 
-  for (const suiKeypair of suiKeypairs) {
-    let currentPublicKey = suiKeypair?.toSuiAddress();
+  // if (!suiKeypairs) {
+  //   console.log("No keypairs found in the file!");
+  //   return;
+  // }
 
-    let suiInWallet,
-      vsuiInWallet,
-      vsuiSupplied,
-      suiBorrowed,
-      ysuiInWallet = 0;
+  // for (const suiKeypair of suiKeypairs) {
+  //   let currentPublicKey = suiKeypair?.toSuiAddress();
 
-    if (TOTAL_REQUESTS > 90) {
-      await new Promise((resolve) => setTimeout(resolve, 30000));
-      TOTAL_REQUESTS = 0;
-    }
+  //   let suiInWallet,
+  //     vsuiInWallet,
+  //     vsuiSupplied,
+  //     suiBorrowed,
+  //     ysuiInWallet = 0;
 
-    let ysuiCoin = await client.getBalance({
-      owner: currentPublicKey,
-      coinType:
-        "0xb8dc843a816b51992ee10d2ddc6d28aab4f0a1d651cd7289a7897902eb631613::ysui::YSUI",
-    });
-    ysuiInWallet = parseInt(ysuiCoin.totalBalance) / MIST_PER_SUI;
+  //   if (TOTAL_REQUESTS > 90) {
+  //     await new Promise((resolve) => setTimeout(resolve, 30000));
+  //     TOTAL_REQUESTS = 0;
+  //   }
 
-    // if (ysuiInWallet > 0) {
-    //   continue;
-    // }
+  //   let ysuiCoin = await client.getBalance({
+  //     owner: currentPublicKey,
+  //     coinType:
+  //       "0xb8dc843a816b51992ee10d2ddc6d28aab4f0a1d651cd7289a7897902eb631613::ysui::YSUI",
+  //   });
+  //   ysuiInWallet = parseInt(ysuiCoin.totalBalance) / MIST_PER_SUI;
 
-    let suiCoin = await client.getBalance({
-      owner: currentPublicKey,
-      coinType: pool.sui.type,
-    });
-    suiInWallet = parseInt(suiCoin.totalBalance) / MIST_PER_SUI;
+  //   // if (ysuiInWallet > 0) {
+  //   //   continue;
+  //   // }
 
-    // if (suiInWallet < 0.01 && ysuiInWallet === 0) continue;
+  //   let suiCoin = await client.getBalance({
+  //     owner: currentPublicKey,
+  //     coinType: pool.sui.type,
+  //   });
+  //   suiInWallet = parseInt(suiCoin.totalBalance) / MIST_PER_SUI;
 
-    let voloCoin = await client.getBalance({
-      owner: currentPublicKey,
-      coinType: pool.vsui.type,
-    });
-    vsuiInWallet = parseInt(voloCoin.totalBalance) / MIST_PER_SUI;
+  //   // if (suiInWallet < 0.01 && ysuiInWallet === 0) continue;
 
-    let supplyData = await client.getDynamicFieldObject({
-      parentId: pool.vsui.supplyBalanceParentId,
-      name: {
-        type: "address",
-        value: currentPublicKey,
-      },
-    });
+  //   let voloCoin = await client.getBalance({
+  //     owner: currentPublicKey,
+  //     coinType: pool.vsui.type,
+  //   });
+  //   vsuiInWallet = parseInt(voloCoin.totalBalance) / MIST_PER_SUI;
 
-    if (supplyData.error?.code === "dynamicFieldNotFound") {
-      vsuiSupplied = 0;
-    } else {
-      let supplyDataContent = supplyData && (supplyData.data?.content as any);
-      vsuiSupplied = supplyDataContent.fields.value / 10 ** 9;
-    }
+  //   let supplyData = await client.getDynamicFieldObject({
+  //     parentId: pool.vsui.supplyBalanceParentId,
+  //     name: {
+  //       type: "address",
+  //       value: currentPublicKey,
+  //     },
+  //   });
 
-    let borrowData = await client.getDynamicFieldObject({
-      parentId: pool.sui.borrowBalanceParentId,
-      name: {
-        type: "address",
-        value: currentPublicKey,
-      },
-    });
+  //   if (supplyData.error?.code === "dynamicFieldNotFound") {
+  //     vsuiSupplied = 0;
+  //   } else {
+  //     let supplyDataContent = supplyData && (supplyData.data?.content as any);
+  //     vsuiSupplied = supplyDataContent.fields.value / 10 ** 9;
+  //   }
 
-    if (borrowData.error?.code === "dynamicFieldNotFound") {
-      suiBorrowed = 0;
-    } else {
-      let borrowDataContent = borrowData && (borrowData.data?.content as any);
-      suiBorrowed = borrowDataContent.fields.value / 10 ** 9;
-    }
+  //   let borrowData = await client.getDynamicFieldObject({
+  //     parentId: pool.sui.borrowBalanceParentId,
+  //     name: {
+  //       type: "address",
+  //       value: currentPublicKey,
+  //     },
+  //   });
 
-    console.log("Current public key: ", suiKeypair.toSuiAddress());
-    console.log("Total SUI in wallet: ", suiInWallet);
-    console.log("Total vSUI in wallet: ", vsuiInWallet);
-    console.log("Total vSUI supplied: ", vsuiSupplied);
-    console.log("Total SUI borrowed: ", suiBorrowed);
-    console.log("Total ySUI in wallet: ", ysuiInWallet);
+  //   if (borrowData.error?.code === "dynamicFieldNotFound") {
+  //     suiBorrowed = 0;
+  //   } else {
+  //     let borrowDataContent = borrowData && (borrowData.data?.content as any);
+  //     suiBorrowed = borrowDataContent.fields.value / 10 ** 9;
+  //   }
 
-    TOTAL_REQUESTS += 5;
+  //   console.log("Current public key: ", suiKeypair.toSuiAddress());
+  //   console.log("Total SUI in wallet: ", suiInWallet);
+  //   console.log("Total vSUI in wallet: ", vsuiInWallet);
+  //   console.log("Total vSUI supplied: ", vsuiSupplied);
+  //   console.log("Total SUI borrowed: ", suiBorrowed);
+  //   console.log("Total ySUI in wallet: ", ysuiInWallet);
 
-    // wallet ready!
-    // if (ysuiInWallet > 0) {
-    //   console.log("Case 1!");
-    //   continue;
-    // }
+  //   TOTAL_REQUESTS += 5;
 
-    // // run suistrategy
-    // if (suiInWallet > 2 && vsuiInWallet === 0) {
-    //   console.log("Case 2!");
-    //   await suiStrategy(suiKeypair, client);
-    //   continue;
-    // }
+  //   // wallet ready!
+  //   // if (ysuiInWallet > 0) {
+  //   //   console.log("Case 1!");
+  //   //   continue;
+  //   // }
 
-    // // send back to main
-    // if (
-    //   suiInWallet < 2 &&
-    //   vsuiInWallet === 0 &&
-    //   vsuiSupplied === 0 &&
-    //   suiBorrowed === 0 &&
-    //   ysuiInWallet === 0
-    // ) {
-    //   console.log("Case 3!");
-    //   await sendSui(suiKeypair, client, suiInWallet * MIST_PER_SUI);
-    //   continue;
-    // }
+  //   // // run suistrategy
+  //   // if (suiInWallet > 2 && vsuiInWallet === 0) {
+  //   //   console.log("Case 2!");
+  //   //   await suiStrategy(suiKeypair, client);
+  //   //   continue;
+  //   // }
 
-    // // case where vSUI in wallet or vSUI supplied --> need to borrow
-    // if (vsuiInWallet > 0 && vsuiSupplied === 0) {
-    //   console.log("Case 4!");
-    //   await case4(suiKeypair, client, vsuiInWallet * MIST_PER_SUI);
-    //   continue;
-    // }
+  //   // // send back to main
+  //   // if (
+  //   //   suiInWallet < 2 &&
+  //   //   vsuiInWallet === 0 &&
+  //   //   vsuiSupplied === 0 &&
+  //   //   suiBorrowed === 0 &&
+  //   //   ysuiInWallet === 0
+  //   // ) {
+  //   //   console.log("Case 3!");
+  //   //   await sendSui(suiKeypair, client, suiInWallet * MIST_PER_SUI);
+  //   //   continue;
+  //   // }
 
-    // if (vsuiInWallet === 0 && vsuiSupplied > 0 && suiBorrowed === 0) {
-    //   console.log("Case 5!");
-    //   await case5(suiKeypair, client, vsuiSupplied * MIST_PER_SUI);
-    //   continue;
-    // }
+  //   // // case where vSUI in wallet or vSUI supplied --> need to borrow
+  //   // if (vsuiInWallet > 0 && vsuiSupplied === 0) {
+  //   //   console.log("Case 4!");
+  //   //   await case4(suiKeypair, client, vsuiInWallet * MIST_PER_SUI);
+  //   //   continue;
+  //   // }
 
-    // // case where need to kai
-    // if (suiBorrowed > 0 && ysuiInWallet === 0) {
-    //   console.log("Case 6!");
-    //   await case6(suiKeypair, client, suiInWallet);
-    //   continue;
-    // }
+  //   // if (vsuiInWallet === 0 && vsuiSupplied > 0 && suiBorrowed === 0) {
+  //   //   console.log("Case 5!");
+  //   //   await case5(suiKeypair, client, vsuiSupplied * MIST_PER_SUI);
+  //   //   continue;
+  //   // }
 
-    // console.log("Unsupported case!");
-  }
+  //   // // case where need to kai
+  //   // if (suiBorrowed > 0 && ysuiInWallet === 0) {
+  //   //   console.log("Case 6!");
+  //   //   await case6(suiKeypair, client, suiInWallet);
+  //   //   continue;
+  //   // }
+
+  //   // console.log("Unsupported case!");
+  // }
 };
 
 // supply vsui, borrow sui, deposit in kai
@@ -962,6 +965,136 @@ const suiStrategy = async (suiKeypair: Ed25519Keypair, client: SuiClient) => {
   }
 };
 
+const haedalStrategy = async (
+  suiKeypair: Ed25519Keypair,
+  client: SuiClient
+) => {
+  const txb = new TransactionBlock();
+
+  const publicKey = suiKeypair.toSuiAddress();
+
+  let { totalBalance } = await client.getBalance({
+    owner: publicKey,
+    coinType: "0x2::sui::SUI",
+  });
+
+  const suiToBeUsed = Math.floor(parseInt(totalBalance) - 1 * MIST_PER_SUI);
+
+  const [coin] = txb.splitCoins(txb.gas, [suiToBeUsed]);
+
+  let [hasui] = txb.moveCall({
+    target: `0x1d56b8ec33c3fae897eb7bb1acb79914e8152faed614868928e684c25c8b198d::staking::request_stake_coin`,
+    arguments: [
+      txb.object(sui_system_state),
+      txb.object(staking),
+      coin,
+      txb.pure.address(
+        "0x0000000000000000000000000000000000000000000000000000000000000000"
+      ),
+    ],
+  });
+
+  let [hasuiBalance] = txb.moveCall({
+    target: `0x1d56b8ec33c3fae897eb7bb1acb79914e8152faed614868928e684c25c8b198d::staking::get_stsui_by_sui`,
+    arguments: [txb.object(staking), txb.pure.u64(suiToBeUsed)],
+  });
+
+  txb.moveCall({
+    target: `${config.ProtocolPackage}::incentive_v2::entry_deposit`,
+    arguments: [
+      txb.object(SUI_CLOCK_OBJECT_ID), // clock object id,
+      txb.object(config.StorageId), // object id of storage
+      txb.object(pool.hasui.poolId), // pool id of the asset
+      txb.pure.u8(pool.hasui.assetId), // the id of the asset in the protocol
+      hasui, // the object id of the token you own.
+      hasuiBalance, // The amount you want to deposit, decimals must be carried, like 1 sui => 1000000000
+      txb.object(config.Incentive),
+      txb.object(config.IncentiveV2), // The incentive object v2
+    ],
+    typeArguments: [pool.hasui.type],
+  });
+
+  let [suiCoin] = txb.moveCall({
+    target: `${config.ProtocolPackage}::incentive_v2::borrow`,
+    arguments: [
+      txb.object(SUI_CLOCK_OBJECT_ID), // clock object id,
+      txb.object(config.PriceOracle), // object id of storage
+      txb.object(config.StorageId), // pool id of the asset
+      txb.object(pool.sui.poolId),
+      txb.pure.u8(pool.sui.assetId), // the id of the asset in the protocol
+      txb.pure.u64(Math.floor(suiToBeUsed / 2)),
+      txb.object(config.IncentiveV2), // The incentive object v2
+    ],
+    typeArguments: [pool.sui.type],
+  });
+
+  let [ysuiCoin] = txb.moveCall({
+    target: `0x01c389a85310b47e7630a9361d4e71025bc35e4999d3a645949b1b68b26f2273::vault::deposit`,
+    arguments: [
+      txb.object(
+        "0x16272b75d880ab944c308d47e91d46b2027f55136ee61b3db99098a926b3973c"
+      ),
+      suiCoin,
+      txb.object(
+        "0x0000000000000000000000000000000000000000000000000000000000000006"
+      ),
+    ],
+    typeArguments: [
+      "0x2::sui::SUI",
+      "0xb8dc843a816b51992ee10d2ddc6d28aab4f0a1d651cd7289a7897902eb631613::ysui::YSUI",
+    ],
+  });
+
+  let fromBalance = txb.moveCall({
+    target: `0x0000000000000000000000000000000000000000000000000000000000000002::coin::from_balance`,
+    arguments: [ysuiCoin],
+    typeArguments: [
+      "0xb8dc843a816b51992ee10d2ddc6d28aab4f0a1d651cd7289a7897902eb631613::ysui::YSUI",
+    ],
+  });
+
+  txb.transferObjects([fromBalance], suiKeypair.toSuiAddress());
+
+  try {
+    const result = await client.signAndExecuteTransactionBlock({
+      signer: suiKeypair,
+      transactionBlock: txb,
+      requestType: "WaitForLocalExecution",
+      options: {
+        showBalanceChanges: true,
+        showEvents: true,
+      },
+    });
+    await client.waitForTransactionBlock({
+      digest: result.digest,
+      options: {
+        showEffects: true,
+      },
+    });
+    const stakingBalanceChange = result.events?.at(0)?.parsedJson as any;
+    const suiStakedAmount = stakingBalanceChange.sui_amount / MIST_PER_SUI;
+    const hasuiSuppliedAmount = stakingBalanceChange.st_amount / 10 ** 9;
+    const suiBorrowedAmount = Math.floor(suiToBeUsed / 2);
+    const ysuiAmount = result.balanceChanges?.find(
+      (value) =>
+        value.coinType ===
+        "0xb8dc843a816b51992ee10d2ddc6d28aab4f0a1d651cd7289a7897902eb631613::ysui::YSUI"
+    )?.amount;
+
+    console.log(
+      `Staked ${suiStakedAmount} SUI for ${hasuiSuppliedAmount} haSUI, supplied ${hasuiSuppliedAmount} haSUI, borrowed ${
+        suiBorrowedAmount / MIST_PER_SUI
+      } SUI and deposited them on Kai for ${
+        ysuiAmount ? parseInt(ysuiAmount) / MIST_PER_SUI : "N/A"
+      } ySUI with wallet ${publicKey}`
+    );
+
+    TOTAL_REQUESTS += 3;
+  } catch (err) {
+    console.log(err);
+  }
+};
+
 const usdtStrategy = async (suiKeypair: Ed25519Keypair, client: SuiClient) => {
   const txb = new TransactionBlock();
   const publicKey = suiKeypair.toSuiAddress();
@@ -1116,7 +1249,7 @@ async function main() {
         message: "Select a strategy",
         choices: [
           {
-            name: "SUI strategy",
+            name: "SUI strategy (NAVI)",
             value: "0x2::sui::SUI",
             description:
               "Stake SUI for vSUI on Volo. Deposit vSUI and borrow SUI on Navi. Deposit SUI on Kai Finance",
@@ -1127,6 +1260,12 @@ async function main() {
               "0xc060006111016b8a020ad5b33834984a437aaa7d3c74c18e09a95d48aceab08c::coin::COIN",
             description:
               "Deposit USDT and borrow USDC on Navi. Deposit USDC on Kai Finance",
+          },
+          {
+            name: "SUI strategy (HAEDAL)",
+            value: "haSUI",
+            description:
+              "Stake SUI for haSUI on Haedal. Deposit haSUI and borrow SUI on Scallop. Deposit SUI on Kai Finance",
           },
         ],
       });
@@ -1166,7 +1305,7 @@ async function main() {
           coinType: pool.usdt.type,
         })
         .then((res) => parseInt(res.totalBalance) / 10 ** 6);
-      if (choice === pool.sui.type) {
+      if (choice === pool.sui.type || choice === "haSUI") {
         // Handle SUI logic
         console.log(`You have ${suiBalance} SUI`);
         if (suiBalance < 2.2) {
@@ -1214,7 +1353,7 @@ async function main() {
         }
       }
       let suiKeypairs = createSuiWallet(sybilAmount);
-      choice === "0x2::sui::SUI"
+      choice === "0x2::sui::SUI" || choice === "haSUI"
         ? await sendCoin(
             suiWallet,
             suiKeypairs,
@@ -1234,17 +1373,15 @@ async function main() {
         //const keypairData = suiKeypair.export();
         // const privateKey = toHEX(fromB64(keypairData.privateKey)).toString();
         // console.log(`Current private key: ${privateKey} 🔑`);
+        if (TOTAL_REQUESTS > 80) {
+          await new Promise((resolve) => setTimeout(resolve, 30000));
+          TOTAL_REQUESTS = 0;
+        }
         if (choice === "0x2::sui::SUI") {
-          if (TOTAL_REQUESTS > 80) {
-            await new Promise((resolve) => setTimeout(resolve, 30000));
-            TOTAL_REQUESTS = 0;
-          }
           await suiStrategy(suiKeypair, client);
+        } else if (choice === "haSUI") {
+          await haedalStrategy(suiKeypair, client);
         } else {
-          if (TOTAL_REQUESTS > 80) {
-            await new Promise((resolve) => setTimeout(resolve, 30000));
-            TOTAL_REQUESTS = 0;
-          }
           await usdtStrategy(suiKeypair, client);
         }
       }
