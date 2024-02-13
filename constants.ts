@@ -1,5 +1,3 @@
-import { Ed25519Keypair } from "@mysten/sui.js/dist/cjs/keypairs/ed25519";
-
 export interface Pool {
   sui: PoolConfig;
   usdc: PoolConfig;
@@ -11,6 +9,7 @@ export interface Pool {
 
 export interface PoolConfig {
   name: string; // Customized Names
+  decimals: number;
   assetId: number;
   poolId: string; // Type must be ${PriceOraclePackage}::pool::Pool<${CoinType}>
   type: string; // CoinType
@@ -38,6 +37,7 @@ export const config = {
 export const pool: Pool = {
   sui: {
     name: "SUI",
+    decimals: 10 ** 9,
     assetId: 0,
     poolId:
       "0x96df0fce3c471489f4debaaa762cf960b3d97820bd1f3f025ff8190730e958c5",
@@ -51,6 +51,7 @@ export const pool: Pool = {
   },
   usdc: {
     name: "USDC",
+    decimals: 10 ** 6,
     assetId: 1,
     poolId:
       "0xa02a98f9c88db51c6f5efaaf2261c81f34dd56d86073387e0ef1805ca22e39c8",
@@ -65,6 +66,7 @@ export const pool: Pool = {
   },
   usdt: {
     name: "USDT",
+    decimals: 10 ** 6,
     assetId: 2,
     poolId:
       "0x0e060c3b5b8de00fb50511b7a45188c8e34b6995c01f69d98ea5a466fe10d103",
@@ -78,6 +80,7 @@ export const pool: Pool = {
   },
   weth: {
     name: "WETH",
+    decimals: 10 ** 9,
     assetId: 3,
     poolId:
       "0x71b9f6e822c48ce827bceadce82201d6a7559f7b0350ed1daa1dc2ba3ac41b56",
@@ -91,6 +94,7 @@ export const pool: Pool = {
   },
   vsui: {
     name: "VSUI",
+    decimals: 10 ** 9,
     assetId: 5,
     poolId:
       "0x9790c2c272e15b6bf9b341eb531ef16bcc8ed2b20dfda25d060bf47f5dd88d01",
@@ -104,6 +108,7 @@ export const pool: Pool = {
   },
   hasui: {
     name: "HASUI",
+    decimals: 10 ** 9,
     assetId: 6,
     poolId:
       "0x6fd9cb6ebd76bc80340a9443d72ea0ae282ee20e2fd7544f6ffcd2c070d9557a",
