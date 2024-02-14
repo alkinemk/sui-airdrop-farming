@@ -58,3 +58,14 @@ Check positions
 ```bash
 ts-node main.ts check-positions
 ```
+
+# TO DO
+
+[] filter out dust wallets (personal)
+[] unwind all sui strategies
+[] improve position checking (check 1 + more robust data)
+[] fix stable strategy
+[] unwind 1 stable strategy
+[] unwind all stable stretegy
+[] mass send dust
+[] hasui aftermath bucket new strategies
