@@ -3,14 +3,18 @@ import { SUI_CLOCK_OBJECT_ID, MIST_PER_SUI } from "@mysten/sui.js/utils";
 import { getFullnodeUrl, SuiClient } from "@mysten/sui.js/client";
 import { TransactionBlock } from "@mysten/sui.js/transactions";
 
+import { bcs } from "@mysten/sui.js/bcs";
+
 import { toHEX, fromB64, fromHEX } from "@mysten/bcs";
+
+import { UserStateInfo, ReserveDataInfo } from "../utils/types";
 
 import { pool, config, sui_system_state, staking } from "../constants";
 
 import { Ed25519Keypair } from "@mysten/sui.js/keypairs/ed25519";
 import { readFromFile } from "../utils/utils-file";
 
-import { getPositionsVolo } from "./monitoring";
+import { parseData } from "../utils/utils-sui";
 
 export const unwind = async (client: SuiClient, privateKey?: string) => {
   const fileContent = readFromFile("farming_wallets.json");
@@ -48,14 +52,36 @@ export const unwindVoloStrategy = async (
 
   const publicKey = suiKeypair.toSuiAddress();
 
-  const { suiInWallet, vsuiInWallet, vsuiSupplied, suiBorrowed, ysuiInWallet } =
-    await getPositionsVolo(client, privateKey);
+  const suiBorrowed = (await getBorrowBalance("sui", publicKey, client)).at(0);
+  const voloSupplied = (await getSupplyBalance("vsui", publicKey, client)).at(
+    0
+  );
+
+  if (!suiBorrowed || !voloSupplied) {
+    return;
+  }
+
+  const suiBorrowedInt = parseInt(suiBorrowed);
+  const voloSuppliedInt = parseInt(voloSupplied);
+
+  //   const { suiInWallet, vsuiInWallet, vsuiSupplied, suiBorrowed, ysuiInWallet } =
+  //     await getPositionsVolo(client, privateKey);
 
   //   if (ysuiInWallet === 0) {
   //     return;
   //   }
 
-  const suiToBeUsed = Math.floor((suiInWallet - 1) * Number(MIST_PER_SUI));
+  let { totalBalance } = await client.getBalance({
+    owner: publicKey,
+    coinType:
+      "0xb8dc843a816b51992ee10d2ddc6d28aab4f0a1d651cd7289a7897902eb631613::ysui::YSUI",
+  });
+
+  if (!totalBalance) {
+    return;
+  }
+
+  const ysuiBalance = parseInt(totalBalance);
 
   let { data } = await client.getCoins({
     owner: publicKey,
@@ -63,92 +89,112 @@ export const unwindVoloStrategy = async (
       "0xb8dc843a816b51992ee10d2ddc6d28aab4f0a1d651cd7289a7897902eb631613::ysui::YSUI",
   });
 
-  //   const ysuiCoin = data.at(0)?.coinObjectId;
+  const ysuiCoin = data.find(
+    (value) =>
+      value.coinType ===
+      "0xb8dc843a816b51992ee10d2ddc6d28aab4f0a1d651cd7289a7897902eb631613::ysui::YSUI"
+  )?.coinObjectId;
 
-  //   if (!ysuiCoin) {
-  //     return;
-  //   }
+  if (!ysuiCoin) {
+    return;
+  }
 
-  //   let toBalance = txb.moveCall({
-  //     target: `0x0000000000000000000000000000000000000000000000000000000000000002::coin::into_balance`,
-  //     arguments: [txb.object(ysuiCoin)],
-  //     typeArguments: [
-  //       "0xb8dc843a816b51992ee10d2ddc6d28aab4f0a1d651cd7289a7897902eb631613::ysui::YSUI",
-  //     ],
-  //   });
+  let toBalance = txb.moveCall({
+    target: `0x0000000000000000000000000000000000000000000000000000000000000002::coin::into_balance`,
+    arguments: [txb.object(ysuiCoin)],
+    typeArguments: [
+      "0xb8dc843a816b51992ee10d2ddc6d28aab4f0a1d651cd7289a7897902eb631613::ysui::YSUI",
+    ],
+  });
 
-  //   let withdrawTicket = txb.moveCall({
-  //     target: `0x1571da6d336abd5fe809b5aee1b2393ff3cd6349b08dba3d0e488f29d6f3e35c::vault::withdraw`,
-  //     arguments: [
-  //       txb.object(
-  //         "0x16272b75d880ab944c308d47e91d46b2027f55136ee61b3db99098a926b3973c"
-  //       ),
-  //       toBalance,
-  //       txb.object(SUI_CLOCK_OBJECT_ID),
-  //     ],
-  //     typeArguments: [
-  //       "0x2::sui::SUI",
-  //       "0xb8dc843a816b51992ee10d2ddc6d28aab4f0a1d651cd7289a7897902eb631613::ysui::YSUI",
-  //     ],
-  //   });
+  let withdrawTicket = txb.moveCall({
+    target: `0x1571da6d336abd5fe809b5aee1b2393ff3cd6349b08dba3d0e488f29d6f3e35c::vault::withdraw`,
+    arguments: [
+      txb.object(
+        "0x16272b75d880ab944c308d47e91d46b2027f55136ee61b3db99098a926b3973c"
+      ),
+      toBalance,
+      txb.object(SUI_CLOCK_OBJECT_ID),
+    ],
+    typeArguments: [
+      "0x2::sui::SUI",
+      "0xb8dc843a816b51992ee10d2ddc6d28aab4f0a1d651cd7289a7897902eb631613::ysui::YSUI",
+    ],
+  });
 
-  //   txb.moveCall({
-  //     target: `0x1571da6d336abd5fe809b5aee1b2393ff3cd6349b08dba3d0e488f29d6f3e35c::scallop_sui_proper::withdraw`,
-  //     arguments: [
-  //       txb.object(
-  //         "0x2192e8983c5b18a0a81479c53eb1903e7fd52adeb6991497083023244614f599"
-  //       ),
-  //       withdrawTicket,
-  //       txb.object(
-  //         "0x07871c4b3c847a0f674510d4978d5cf6f960452795e8ff6f189fd2088a3f6ac7"
-  //       ),
-  //       txb.object(
-  //         "0xa757975255146dc9686aa823b7838b507f315d704f428cbadad2f4ea061939d9"
-  //       ),
-  //       txb.object(
-  //         "0x4f0ba970d3c11db05c8f40c64a15b6a33322db3702d634ced6536960ab6f3ee4"
-  //       ),
-  //       txb.object(SUI_CLOCK_OBJECT_ID),
-  //     ],
-  //   });
+  txb.moveCall({
+    target: `0x1571da6d336abd5fe809b5aee1b2393ff3cd6349b08dba3d0e488f29d6f3e35c::scallop_sui_proper::withdraw`,
+    arguments: [
+      txb.object(
+        "0x2192e8983c5b18a0a81479c53eb1903e7fd52adeb6991497083023244614f599"
+      ),
+      withdrawTicket,
+      txb.object(
+        "0x07871c4b3c847a0f674510d4978d5cf6f960452795e8ff6f189fd2088a3f6ac7"
+      ),
+      txb.object(
+        "0xa757975255146dc9686aa823b7838b507f315d704f428cbadad2f4ea061939d9"
+      ),
+      txb.object(
+        "0x4f0ba970d3c11db05c8f40c64a15b6a33322db3702d634ced6536960ab6f3ee4"
+      ),
+      txb.object(SUI_CLOCK_OBJECT_ID),
+    ],
+  });
 
-  //   let [suiBalance] = txb.moveCall({
-  //     target: `0x1571da6d336abd5fe809b5aee1b2393ff3cd6349b08dba3d0e488f29d6f3e35c::vault::redeem_withdraw_ticket`,
-  //     arguments: [
-  //       txb.object(
-  //         "0x16272b75d880ab944c308d47e91d46b2027f55136ee61b3db99098a926b3973c"
-  //       ),
-  //       withdrawTicket,
-  //     ],
-  //     typeArguments: [
-  //       "0x2::sui::SUI",
-  //       "0xb8dc843a816b51992ee10d2ddc6d28aab4f0a1d651cd7289a7897902eb631613::ysui::YSUI",
-  //     ],
-  //   });
+  let [suiBalance] = txb.moveCall({
+    target: `0x1571da6d336abd5fe809b5aee1b2393ff3cd6349b08dba3d0e488f29d6f3e35c::vault::redeem_withdraw_ticket`,
+    arguments: [
+      txb.object(
+        "0x16272b75d880ab944c308d47e91d46b2027f55136ee61b3db99098a926b3973c"
+      ),
+      withdrawTicket,
+    ],
+    typeArguments: [
+      "0x2::sui::SUI",
+      "0xb8dc843a816b51992ee10d2ddc6d28aab4f0a1d651cd7289a7897902eb631613::ysui::YSUI",
+    ],
+  });
 
-  //   let suiCoin = txb.moveCall({
-  //     target: `0x0000000000000000000000000000000000000000000000000000000000000002::coin::from_balance`,
-  //     arguments: [suiBalance],
-  //     typeArguments: [pool.sui.type],
-  //   });
+  let repayCoin = txb.moveCall({
+    target: `0x0000000000000000000000000000000000000000000000000000000000000002::coin::from_balance`,
+    arguments: [suiBalance],
+    typeArguments: [pool.sui.type],
+  });
 
-  //   //   repaying borrowed assets
-  //   txb.moveCall({
-  //     target: `${config.ProtocolPackage}::incentive_v2::entry_repay`,
-  //     arguments: [
-  //       txb.object(SUI_CLOCK_OBJECT_ID), // clock object id,
-  //       txb.object(config.PriceOracle), // oracle id
-  //       txb.object(config.StorageId), // object id of storage
-  //       txb.object(pool.sui.poolId), // pool id of the asset
-  //       txb.pure.u8(pool.sui.assetId), // the id of the asset in the protocol,
-  //       suiCoin,
-  //       txb.pure.u64(Math.ceil(suiBorrowed * pool.sui.decimals)), // amount to be repaid
-  //       txb.object(config.IncentiveV2), // The incentive object v2
-  //     ],
-  //     typeArguments: [pool.sui.type],
-  //   });
+  //   txb.transferObjects([repayCoin], publicKey);
 
-  //   withdrawing supplied assets
+  const result = await client.devInspectTransactionBlock({
+    sender: publicKey,
+    transactionBlock: txb,
+  });
+
+  const resultData = result.events.at(0)?.parsedJson as any;
+  const suiFromYsuiAmount = parseInt(resultData.amount);
+
+  // if repayCoin not enough to repay should merge
+  if (suiFromYsuiAmount < suiBorrowedInt) {
+    const coin = txb.splitCoins(txb.gas, [suiBorrowedInt - suiFromYsuiAmount]);
+    txb.mergeCoins(repayCoin, [coin]);
+  }
+
+  //   repaying borrowed assets
+  txb.moveCall({
+    target: `${config.ProtocolPackage}::incentive_v2::entry_repay`,
+    arguments: [
+      txb.object(SUI_CLOCK_OBJECT_ID), // clock object id,
+      txb.object(config.PriceOracle), // oracle id
+      txb.object(config.StorageId), // object id of storage
+      txb.object(pool.sui.poolId), // pool id of the asset
+      txb.pure.u8(pool.sui.assetId), // the id of the asset in the protocol,
+      repayCoin,
+      txb.pure.u64(suiBorrowedInt), // amount to be repaid
+      txb.object(config.IncentiveV2), // The incentive object v2
+    ],
+    typeArguments: [pool.sui.type],
+  });
+
+  // withdrawing supplied assets
   let [vsuiBalance] = txb.moveCall({
     target: `${config.ProtocolPackage}::incentive_v2::withdraw`,
     arguments: [
@@ -157,7 +203,7 @@ export const unwindVoloStrategy = async (
       txb.object(config.StorageId), // object id of storage
       txb.object(pool.vsui.poolId), // pool id of the asset
       txb.pure.u8(pool.vsui.assetId), // the id of the asset in the protocol,
-      txb.pure.u64(Math.floor(vsuiSupplied * pool.vsui.decimals)), // amount supplied to be withdrawn
+      txb.pure.u64(voloSuppliedInt), // amount supplied to be withdrawn
       txb.object(config.Incentive),
       txb.object(config.IncentiveV2), // The incentive object v2
     ],
@@ -187,7 +233,7 @@ export const unwindVoloStrategy = async (
     ],
   });
 
-  // txb.transferObjects([fromBalance], suiKeypair.toSuiAddress());
+  //   txb.transferObjects([fromBalance], suiKeypair.toSuiAddress());
 
   try {
     const result = await client.signAndExecuteTransactionBlock({
@@ -205,20 +251,14 @@ export const unwindVoloStrategy = async (
         showEffects: true,
       },
     });
-    // const stakingBalanceChange = result.events?.at(0)?.parsedJson as any;
-    // const suiStakedAmount = stakingBalanceChange.sui_amount / MIST_PER_SUI;
-    // const vsuiSuppliedAmount = stakingBalanceChange.cert_amount / 10 ** 9;
-    // const suiBorrowedAmount = Math.floor(suiToBeUsed / 2);
-    // const ysuiAmount = result.balanceChanges?.find(
-    //   (value) =>
-    //     value.coinType ===
-    //     "0xb8dc843a816b51992ee10d2ddc6d28aab4f0a1d651cd7289a7897902eb631613::ysui::YSUI"
-    // )?.amount;
-    // console.log(
-    //   `Staked ${suiStakedAmount} SUI for ${vsuiSuppliedAmount} vSUI, supplied ${vsuiSuppliedAmount} vSUI, borrowed ${suiBorrowedAmount} SUI and deposited them on Kai for ${
-    //     ysuiAmount ? parseInt(ysuiAmount) / Number(MIST_PER_SUI) : "N/A"
-    //   } ySUI with wallet ${publicKey}`
-    // );
+    if (result.effects?.status.status !== "success") {
+      return;
+    }
+    console.log(
+      `Redeemed ${ysuiBalance / 10 ** 9} ySUI, repaid ${
+        suiBorrowedInt / 10 ** 9
+      } SUI, withdrew ${voloSuppliedInt / 10 ** 9} vSUI`
+    );
   } catch (err) {
     console.log(err);
   }
@@ -479,5 +519,202 @@ export const unwindStableStrategy = async (
     );
   } catch (err) {
     console.log(err);
+  }
+};
+
+const getBorrowBalance = async (
+  asset: string,
+  publicKey: string,
+  client: SuiClient
+): Promise<string[]> => {
+  const getUserStateDataParsed = await getUserState(client, publicKey);
+
+  const borrowedAmount = getUserStateDataParsed.find(
+    (data) => data.asset_id === mapAssetToId(asset)
+  )?.borrow_balance;
+
+  if (!borrowedAmount) {
+    return [];
+  }
+
+  const getReserveDataInfoDataParsed = await getReserveDataInfo(
+    client,
+    publicKey
+  );
+
+  const borrowIndex = getReserveDataInfoDataParsed.find(
+    (data) => data.id === mapAssetToId(asset)
+  )?.borrow_index;
+
+  if (!borrowIndex) {
+    return [];
+  }
+
+  let rayMulTxb = new TransactionBlock();
+
+  rayMulTxb.moveCall({
+    target: `0x1ee4061d3c78d6244b5f32eb4011d081e52f5f4b484ca4a84de48b1146a779f7::ray_math::ray_mul`,
+    arguments: [
+      rayMulTxb.pure.u256(parseInt(borrowedAmount)),
+      rayMulTxb.pure.u256(parseInt(borrowIndex)),
+    ],
+  });
+
+  const rayMulTxbData = await client.devInspectTransactionBlock({
+    sender: publicKey,
+    transactionBlock: rayMulTxb,
+  });
+
+  const rayMulTxbDataParsed = parseData(rayMulTxbData, "u256") as Array<string>;
+
+  return rayMulTxbDataParsed;
+};
+
+const getSupplyBalance = async (
+  asset: string,
+  publicKey: string,
+  client: SuiClient
+): Promise<string[]> => {
+  const getUserStateDataParsed = await getUserState(client, publicKey);
+
+  const suppliedAmount = getUserStateDataParsed.find(
+    (data) => data.asset_id === mapAssetToId(asset)
+  )?.supply_balance;
+
+  if (!suppliedAmount) {
+    return [];
+  }
+
+  const getReserveDataInfoDataParsed = await getReserveDataInfo(
+    client,
+    publicKey
+  );
+
+  const supplyIndex = getReserveDataInfoDataParsed.find(
+    (data) => data.id === mapAssetToId(asset)
+  )?.supply_index;
+
+  if (!supplyIndex) {
+    return [];
+  }
+
+  let rayMulTxb = new TransactionBlock();
+
+  rayMulTxb.moveCall({
+    target: `0x1ee4061d3c78d6244b5f32eb4011d081e52f5f4b484ca4a84de48b1146a779f7::ray_math::ray_mul`,
+    arguments: [
+      rayMulTxb.pure.u256(parseInt(suppliedAmount)),
+      rayMulTxb.pure.u256(parseInt(supplyIndex)),
+    ],
+  });
+
+  const rayMulTxbData = await client.devInspectTransactionBlock({
+    sender: publicKey,
+    transactionBlock: rayMulTxb,
+  });
+
+  const rayMulTxbDataParsed = parseData(rayMulTxbData, "u256") as Array<string>;
+
+  return rayMulTxbDataParsed;
+};
+
+const getReserveDataInfo = async (client: SuiClient, publicKey: string) => {
+  const getReserveDataInfoTxb = new TransactionBlock();
+
+  bcs.registerStructType("ReserveDataInfo", {
+    id: "u8",
+    oracle_id: "u8",
+    coin_type: "string",
+    supply_cap: "u256",
+    borrow_cap: "u256",
+    supply_rate: "u256",
+    borrow_rate: "u256",
+    supply_index: "u256",
+    borrow_index: "u256",
+    total_supply: "u256",
+    total_borrow: "u256",
+    last_update_at: "u64",
+    ltv: "u256",
+    treasury_factor: "u256",
+    treasury_balance: "u256",
+    base_rate: "u256",
+    multiplier: "u256",
+    jump_rate_multiplier: "u256",
+    reserve_factor: "u256",
+    optimal_utilization: "u256",
+    liquidation_ratio: "u256",
+    liquidation_bonus: "u256",
+    liquidation_threshold: "u256",
+  });
+
+  let parseTypeReserveDataInfo = "vector<ReserveDataInfo>";
+
+  getReserveDataInfoTxb.moveCall({
+    target: `0x1ee4061d3c78d6244b5f32eb4011d081e52f5f4b484ca4a84de48b1146a779f7::getter::get_reserve_data`,
+    arguments: [getReserveDataInfoTxb.object(config.StorageId)],
+  });
+
+  const getReserveDataInfoData = await client.devInspectTransactionBlock({
+    sender: publicKey,
+    transactionBlock: getReserveDataInfoTxb,
+  });
+
+  const getReserveDataInfoDataParsed = parseData(
+    getReserveDataInfoData,
+    parseTypeReserveDataInfo
+  )?.at(0) as Array<ReserveDataInfo>;
+
+  return getReserveDataInfoDataParsed;
+};
+
+const getUserState = async (
+  client: SuiClient,
+  publicKey: string
+): Promise<UserStateInfo[]> => {
+  const getUserStateTxb = new TransactionBlock();
+
+  bcs.registerStructType("UserStateInfo", {
+    asset_id: "u8",
+    borrow_balance: "u256",
+    supply_balance: "u256",
+  });
+
+  getUserStateTxb.moveCall({
+    target: `0x1ee4061d3c78d6244b5f32eb4011d081e52f5f4b484ca4a84de48b1146a779f7::getter::get_user_state`,
+    arguments: [
+      getUserStateTxb.object(config.StorageId), // storage id,
+      getUserStateTxb.pure.address(publicKey),
+    ],
+  });
+
+  const getUserStateData = await client.devInspectTransactionBlock({
+    sender: publicKey,
+    transactionBlock: getUserStateTxb,
+  });
+
+  let parseTypeUserStateInfo = "vector<UserStateInfo>";
+
+  const getUserStateDataParsed = parseData(
+    getUserStateData,
+    parseTypeUserStateInfo
+  )?.at(0) as Array<UserStateInfo>;
+
+  return getUserStateDataParsed;
+};
+
+const mapAssetToId = (asset: string) => {
+  switch (asset) {
+    case "sui":
+      return 0;
+    case "usdc":
+      return 1;
+    case "usdt":
+      return 2;
+    case "weth":
+      return 3;
+    case "vsui":
+      return 5;
+    case "hasui":
+      return 6;
   }
 };

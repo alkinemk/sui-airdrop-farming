@@ -1,5 +1,3 @@
-import { MIST_PER_SUI } from "@mysten/sui.js/utils";
-
 import { Command } from "@commander-js/extra-typings";
 
 import { input } from "@inquirer/prompts";
@@ -22,6 +20,7 @@ import {
   createSuiWallet,
   sendCoin,
   getPublicKeyFromPrivateKey,
+  fromMist,
 } from "./utils/utils-sui";
 
 import {
@@ -46,7 +45,7 @@ async function main() {
   program
     .command("check")
     .description(
-      "Reads your farming_wallets_sui.json file and check your positions"
+      "Reads your farming_wallets.json file and check your positions"
     )
     .action(() => {
       getPositions(client);
@@ -55,7 +54,7 @@ async function main() {
     .command("farm")
     .description("Select a strategy and farm!")
     .action(async () => {
-      let suiPerWallet = 0.0;
+      let suiPerWallet = 0;
 
       const choice = await select({
         message: "Select a strategy",
@@ -81,7 +80,7 @@ async function main() {
         ],
       });
       const suiWallet = await input({
-        message: "Private key",
+        message: "Private key?",
       }).then((res) => {
         if (res.startsWith("0x")) {
           console.log("You provided a public key 😡");
@@ -110,72 +109,39 @@ async function main() {
         })
         .then((res) => parseInt(res.totalBalance));
 
-      console.log(`You have ${totalSuiBalance / Number(MIST_PER_SUI)} SUI`);
+      console.log(`You have ${fromMist(totalSuiBalance)} SUI`);
+      console.log(
+        `It is recommended to use at least 100 SUI per wallet + 0.5 SUI for gas (e.g: for 10 wallets --> a wallet with 1000.5 SUI)`
+      );
+
+      if (fromMist(totalSuiBalance) < 100.5) {
+        return;
+      }
 
       switch (choice) {
         case "volo" || "haedal":
-          const recommendedWalletAmount = Math.floor(
-            totalSuiBalance / (102 * Number(MIST_PER_SUI)) - 0.2
-          );
-          if (recommendedWalletAmount < 1) {
-            console.log(
-              `It is recommended to use at least 102 SUI per wallet - please top up!
-        }`
-            );
-          } else {
-            console.log(
-              `It is recommended to use at least 100 SUI per wallet - that would be ${recommendedWalletAmount} ${
-                recommendedWalletAmount <= 1 ? `wallet` : `wallets`
-              }`
-            );
-          }
+          suiPerWallet = await input({
+            message: "How much SUI per wallet would you like to use?",
+          }).then((res) => parseInt(res));
 
-          const amountPerWalletConfirmation = await select({
-            message: `Do you want to use ${recommendedWalletAmount} ${
-              recommendedWalletAmount <= 1 ? `wallet` : `wallets`
-            } or do you want to use less?`,
-            choices: [
-              {
-                name: `${recommendedWalletAmount} ${
-                  recommendedWalletAmount <= 1 ? `wallet` : `wallets`
-                }`,
-                value: `${recommendedWalletAmount}`,
-              },
-              {
-                name: "less",
-                value: "less",
-              },
-            ],
-          });
-
-          let sybilAmount = recommendedWalletAmount;
-          if (amountPerWalletConfirmation === "less") {
-            sybilAmount = await input({
-              message: "How many wallet(s)?",
-            }).then((res) => parseInt(res));
-          }
-
-          if (sybilAmount > recommendedWalletAmount) {
-            console.log("Not enough SUI / too many wallets");
+          if (suiPerWallet < 100) {
+            return;
+          } else if (suiPerWallet > fromMist(totalSuiBalance)) {
+            console.log("You don't have enough SUI");
             return;
           }
+
+          let sybilAmount = Math.floor(
+            fromMist(totalSuiBalance) / suiPerWallet
+          );
+
           await confirm({
-            message: `Do you want to use ${(
-              (totalSuiBalance - 0.5 * Number(MIST_PER_SUI)) /
-              (sybilAmount * Number(MIST_PER_SUI))
-            ).toFixed(9)} per wallet`,
-          }).then((res) => {
-            if (!res) return;
+            message: `Do you really want to use ${suiPerWallet} per wallet on ${sybilAmount} ${
+              sybilAmount > 1 ? "wallets" : "wallet"
+            }?`,
           });
 
           suiKeypairs = createSuiWallet(sybilAmount);
-
-          suiPerWallet = parseInt(
-            (
-              (totalSuiBalance - 0.5 * Number(MIST_PER_SUI)) /
-              sybilAmount
-            ).toFixed(9)
-          );
 
           await sendCoin(
             suiWallet,

@@ -7,9 +7,13 @@ import { toHEX, fromB64, fromHEX } from "@mysten/bcs";
 
 import { pool } from "../constants";
 
+import { bcs } from "@mysten/sui.js/bcs";
+
 import { saveToFile } from "./utils-file";
 
 import { Ed25519Keypair } from "@mysten/sui.js/keypairs/ed25519";
+
+import { DevInspectResults } from "@mysten/sui.js/client";
 
 export const createSuiWallet = (amount: number): Array<Ed25519Keypair> => {
   const privateKeys: Array<string> = [];
@@ -192,8 +196,35 @@ export const sendCoin = async (
           } SUI to ${sybilAmount} addresses 💧`
         );
 
-    saveToFile("farming_wallets.json", fileContentData);
+    saveToFile("farming_wallets_mundz.json", fileContentData);
   } catch (err) {
     console.log(err);
   }
+};
+
+export const parseData = (data: DevInspectResults, parseType: string) => {
+  if (data.results && data.results.length > 0) {
+    if (
+      data.results[0].returnValues &&
+      data.results[0].returnValues.length > 0
+    ) {
+      let values: any[] = [];
+      for (let v of data.results[0].returnValues) {
+        const _type = parseType ? parseType : v[1];
+        let result = bcs.de(_type, Uint8Array.from(v[0]));
+        values.push(result);
+      }
+      return values;
+    }
+  } else if (data.error) {
+    console.log(`Get an error, msg: ${data.error}`);
+  }
+};
+
+export const toMist = (suiAmount: number) => {
+  return suiAmount * 10 ** 9;
+};
+
+export const fromMist = (mistAmount: number) => {
+  return mistAmount / 10 ** 9;
 };
